@@ -1,0 +1,14 @@
+.venv/
+data/
+.preview-data/
+__pycache__/
+**/__pycache__/
+*.pyc
+tests/
+.env
+.git/
+.gitignore
+*.md
+dev.sh
+selftest.py
+.pytest_cache/

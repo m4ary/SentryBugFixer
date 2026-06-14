@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SentryBugFixer</title>
+  <link rel="icon" href="/static/logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1><img src="/static/logo.svg" alt="" class="logo" /> SentryBugFixer</h1>
+    <p class="sub">Pull a Sentry issue → clone the repo → fix it with an agent → open a GitLab MR.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="card-head">
+        <h2>Projects</h2>
+        <button id="add-project-btn">+ Add project</button>
+      </div>
+      <div id="projects"></div>
+    </section>
+
+    <section class="card" id="issues-card" hidden>
+      <h2>Issues — <span id="issues-project"></span></h2>
+      <div id="issues">Loading…</div>
+    </section>
+
+    <section class="card">
+      <h2>Fix jobs</h2>
+      <div id="jobs"></div>
+    </section>
+
+    <section class="card">
+      <h2>Models &amp; pricing <span class="muted" id="models-current"></span></h2>
+      <div id="models"></div>
+    </section>
+  </main>
+
+  <div id="project-modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="project-modal-title">Add project</h3>
+        <span class="spacer"></span>
+        <button class="ghost" id="project-modal-close">✕</button>
+      </div>
+      <form class="modal-body" id="project-form">
+        <input name="name" placeholder="Name (e.g. Backend API)" required />
+        <input name="gitlab_url" placeholder="GitLab repo URL (https://gitlab.com/group/project)" required />
+        <input name="sentry_url" placeholder="Sentry project URL (https://org.sentry.io/projects/proj/)" required />
+        <input name="default_branch" placeholder="default branch" value="main" />
+        <div class="modal-actions">
+          <button type="button" class="ghost" id="project-cancel">Cancel</button>
+          <button type="submit" id="project-save">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="hist-modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="hist-title">Issue history</h3>
+        <span class="spacer"></span>
+        <button class="ghost" id="hist-close">✕</button>
+      </div>
+      <div class="modal-body" id="hist-body"></div>
+    </div>
+  </div>
+
+  <div id="start-modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="start-title">Fix issue</h3>
+        <span class="spacer"></span>
+        <button class="ghost" id="start-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" id="start-sub"></p>
+        <textarea id="start-input" rows="5"
+          placeholder="Optional: extra instructions for the agent (e.g. 'add an Alembic migration', 'the root cause is in services/llm.py')."></textarea>
+        <div class="modal-actions">
+          <button class="ghost" id="start-cancel">Cancel</button>
+          <button id="start-go">Start ▶</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="log-modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="log-title">Fix log</h3>
+        <span id="log-status" class="status"></span>
+        <span class="spacer"></span>
+        <a id="log-mr" href="#" target="_blank" hidden>Merge request ↗</a>
+        <button class="ghost" id="log-close">✕</button>
+      </div>
+      <pre id="log-body"></pre>
+      <div class="modal-foot"><span id="log-conn" class="muted">connecting…</span></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
