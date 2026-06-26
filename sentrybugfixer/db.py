@@ -10,9 +10,10 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     name          TEXT NOT NULL,
-    gitlab_url    TEXT NOT NULL,
+    gitlab_url    TEXT NOT NULL DEFAULT '',
     sentry_url    TEXT NOT NULL,
     default_branch TEXT NOT NULL DEFAULT 'main',
+    github_url    TEXT NOT NULL DEFAULT '',
     created_at    REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS jobs (
@@ -36,6 +37,9 @@ class Database:
         with self._conn() as c:
             c.executescript(_SCHEMA)
             # lightweight migration: add columns introduced after the first release
+            proj_cols = {r[1] for r in c.execute("PRAGMA table_info(projects)")}
+            if "github_url" not in proj_cols:
+                c.execute("ALTER TABLE projects ADD COLUMN github_url TEXT NOT NULL DEFAULT ''")
             cols = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
             migrations = {
                 "instructions": "TEXT NOT NULL DEFAULT ''",
@@ -61,11 +65,14 @@ class Database:
             conn.close()
 
     # --- projects ---
-    def add_project(self, name: str, gitlab_url: str, sentry_url: str, default_branch: str = "main") -> dict:
+    def add_project(
+        self, name: str, gitlab_url: str, sentry_url: str, default_branch: str = "main", github_url: str = ""
+    ) -> dict:
         with self._conn() as c:
             cur = c.execute(
-                "INSERT INTO projects (name, gitlab_url, sentry_url, default_branch, created_at) VALUES (?,?,?,?,?)",
-                (name, gitlab_url, sentry_url, default_branch, time.time()),
+                "INSERT INTO projects (name, gitlab_url, sentry_url, default_branch, github_url, created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (name, gitlab_url, sentry_url, default_branch, github_url, time.time()),
             )
             new_id = cur.lastrowid
         return self.get_project(new_id)
@@ -80,7 +87,7 @@ class Database:
             return dict(row) if row else None
 
     def update_project(self, project_id: int, **fields) -> dict | None:
-        allowed = {"name", "gitlab_url", "sentry_url", "default_branch"}
+        allowed = {"name", "gitlab_url", "sentry_url", "default_branch", "github_url"}
         fields = {k: v for k, v in fields.items() if k in allowed and v is not None}
         if fields:
             cols = ", ".join(f"{k}=?" for k in fields)

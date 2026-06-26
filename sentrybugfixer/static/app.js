@@ -25,7 +25,7 @@ async function loadProjects() {
       <div class="proj-item" data-pid="${p.id}">
         <div>
           <strong>${esc(p.name)}</strong>
-          <div class="meta">${esc(p.gitlab_url)} · ${esc(p.sentry_url)} · branch <code>${esc(p.default_branch)}</code></div>
+          <div class="meta">${esc(p.github_url || p.gitlab_url)} · ${esc(p.sentry_url)} · branch <code>${esc(p.default_branch)}</code></div>
         </div>
         <div class="actions">
           <button data-issues="${p.id}">View issues</button>
@@ -61,6 +61,7 @@ function openProjectModal(project) {
   const f = $("#project-form");
   f.name.value = project ? project.name : "";
   f.gitlab_url.value = project ? project.gitlab_url : "";
+  f.github_url.value = project ? project.github_url : "";
   f.sentry_url.value = project ? project.sentry_url : "";
   f.default_branch.value = project ? project.default_branch : "main";
   $("#project-modal").hidden = false;
@@ -82,6 +83,7 @@ $("#project-form").addEventListener("submit", async (e) => {
   const payload = {
     name: f.name.value,
     gitlab_url: f.gitlab_url.value,
+    github_url: f.github_url.value,
     sentry_url: f.sentry_url.value,
     default_branch: f.default_branch.value || "main",
   };
@@ -154,7 +156,7 @@ async function loadJobs() {
           <td><span class="status ${esc(j.status)}">${esc(statusLabel(j.status))}</span></td>
           <td>${fmtTok(j.input_tokens)} / ${fmtTok(j.output_tokens)}</td>
           <td>${fmtUsd(j.cost_usd)}</td>
-          <td>${j.mr_url ? `<a href="${esc(j.mr_url)}" target="_blank">Merge request ↗</a>` : "—"}</td>
+          <td>${j.mr_url ? `<a href="${esc(j.mr_url)}" target="_blank">${prLabel(j.mr_url)} ↗</a>` : "—"}</td>
           <td><button class="ghost" data-log="${esc(j.id)}" data-title="${esc(j.issue_title || j.issue_id)}">📜 View log</button></td>
         </tr>`
       )
@@ -165,10 +167,12 @@ async function loadJobs() {
   );
 }
 
+const prLabel = (url) => (url && url.includes("github.com") ? "PR" : "MR");
+
 function actionCell(i) {
   const title = esc(i.title || i.id);
   if (i.action === "review")
-    return `<span class="badge info">Under review</span> ${i.mr_url ? `<a href="${esc(i.mr_url)}" target="_blank">MR ↗</a>` : ""}`;
+    return `<span class="badge info">Under review</span> ${i.mr_url ? `<a href="${esc(i.mr_url)}" target="_blank">${prLabel(i.mr_url)} ↗</a>` : ""}`;
   if (i.action === "running")
     return `<button class="ghost" data-viewjob="${esc(i.job_id)}" data-title="${title}">▶ Running… view</button>`;
   if (i.action === "resume")
@@ -295,7 +299,7 @@ async function openHistory(projectId, issueId, title) {
             <td><span class="status ${esc(j.status)}">${esc(statusLabel(j.status))}</span></td>
             <td>${fmtTok(j.input_tokens)} / ${fmtTok(j.output_tokens)}</td>
             <td>${fmtUsd(j.cost_usd)}</td>
-            <td>${j.mr_url ? `<a href="${esc(j.mr_url)}" target="_blank">MR ↗</a>` : "—"}</td>
+            <td>${j.mr_url ? `<a href="${esc(j.mr_url)}" target="_blank">${prLabel(j.mr_url)} ↗</a>` : "—"}</td>
             <td><button class="ghost" data-histlog="${esc(j.id)}" data-title="${esc(j.issue_title || j.issue_id)}">log</button></td>
           </tr>`
           )

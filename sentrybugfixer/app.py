@@ -10,9 +10,9 @@ from pathlib import Path
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
-from . import __version__, gitlab_client, pricing, sentry_client
+from . import __version__, github_client, gitlab_client, pricing, sentry_client
 from .config import settings
 from .db import Database
 from .events import broker
@@ -56,9 +56,16 @@ _STATIC = Path(__file__).resolve().parent / "static"
 
 class ProjectIn(BaseModel):
     name: str
-    gitlab_url: str
+    gitlab_url: str = ""
+    github_url: str = ""
     sentry_url: str
     default_branch: str = "main"
+
+    @model_validator(mode="after")
+    def check_repo_url(self):
+        if not self.gitlab_url and not self.github_url:
+            raise ValueError("Either gitlab_url or github_url must be provided")
+        return self
 
 
 class FixIn(BaseModel):
@@ -78,16 +85,23 @@ def _start_fix(project: dict, issue_id: str, issue_title: str = "", instructions
     return db.get_job(job_id)
 
 
+def _get_pr_state(project: dict, branch: str) -> str | None:
+    """Return PR/MR state for the branch, dispatching to GitHub or GitLab."""
+    if project.get("github_url"):
+        return github_client.get_pr_state(project["github_url"], branch)
+    return gitlab_client.get_mr_state(project.get("gitlab_url", ""), branch)
+
+
 def _issue_action(project: dict, issue_id: str) -> dict:
     """Decide what the dashboard should offer for an issue: review | running | resume | fix."""
     mr_url = db.last_mr_url_for_issue(project["id"], issue_id)
     if mr_url:
-        state = gitlab_client.get_mr_state(project["gitlab_url"], branch_name(issue_id))
+        state = _get_pr_state(project, branch_name(issue_id))
         if state in ("closed", "merged"):
-            # MR is finished → close (resolve) the Sentry issue so it drops off the list.
+            # PR/MR is finished → close (resolve) the Sentry issue so it drops off the list.
             sentry_client.resolve_issue(issue_id)
             return {"action": "resolved", "mr_url": mr_url}
-        if state == "opened" or state == "locked":
+        if state in ("opened", "open", "locked"):
             return {"action": "review", "mr_url": mr_url}
 
     latest = db.latest_job_for_issue(project["id"], issue_id)
@@ -108,7 +122,7 @@ def get_projects():
 
 @app.post("/api/projects")
 def create_project(p: ProjectIn):
-    return db.add_project(p.name, p.gitlab_url, p.sentry_url, p.default_branch)
+    return db.add_project(p.name, p.gitlab_url, p.sentry_url, p.default_branch, p.github_url)
 
 
 @app.put("/api/projects/{project_id}")
@@ -116,7 +130,12 @@ def edit_project(project_id: int, p: ProjectIn):
     if not db.get_project(project_id):
         raise HTTPException(404, "project not found")
     return db.update_project(
-        project_id, name=p.name, gitlab_url=p.gitlab_url, sentry_url=p.sentry_url, default_branch=p.default_branch
+        project_id,
+        name=p.name,
+        gitlab_url=p.gitlab_url,
+        github_url=p.github_url,
+        sentry_url=p.sentry_url,
+        default_branch=p.default_branch,
     )
 
 

@@ -30,6 +30,10 @@ class Settings:
     gitlab_token: str = os.getenv("GITLAB_TOKEN", "")
     gitlab_host: str = os.getenv("GITLAB_HOST", "https://gitlab.com").rstrip("/")
 
+    # GitHub
+    github_token: str = os.getenv("GITHUB_TOKEN", "")
+    github_host: str = os.getenv("GITHUB_HOST", "https://github.com").rstrip("/")
+
     # Agent limits
     max_steps: int = int(os.getenv("SBF_MAX_STEPS", "40"))
     bash_timeout: int = int(os.getenv("SBF_BASH_TIMEOUT", "180"))

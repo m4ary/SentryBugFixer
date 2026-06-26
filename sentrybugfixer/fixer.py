@@ -4,7 +4,7 @@ import logging
 import re
 import traceback
 
-from . import gitlab_client, pricing, sentry_client
+from . import github_client, gitlab_client, pricing, sentry_client
 from .agent import run_agent
 from .config import settings
 from .db import Database
@@ -63,12 +63,16 @@ def run_fix_job(db: Database, job_id: str, project: dict, issue_id: str, instruc
         # attempt was interrupted and can be resumed (reusing the existing clone + edits).
         transcript = settings.repos_dir / f"{project['id']}-{issue.id}.transcript.json"
 
+        use_github = bool(project.get("github_url"))
+        repo_url = project["github_url"] if use_github else project["gitlab_url"]
+        git = github_client if use_github else gitlab_client
+
         if repo_dir.exists() and transcript.exists():
             log("Resuming previous attempt (reusing clone, edits and transcript) ...")
             repo = repo_dir
         else:
-            log(f"Cloning {project['gitlab_url']} (branch {project['default_branch']}) ...")
-            repo = gitlab_client.clone(project["gitlab_url"], repo_dir, branch=project["default_branch"])
+            log(f"Cloning {repo_url} (branch {project['default_branch']}) ...")
+            repo = git.clone(repo_url, repo_dir, branch=project["default_branch"])
 
         task = issue.to_task()
         if instructions:
@@ -78,7 +82,7 @@ def run_fix_job(db: Database, job_id: str, project: dict, issue_id: str, instruc
         summary = run_agent(task, repo, on_log=log, transcript_path=transcript, usage=usage)
         cost = record_usage()
 
-        if not gitlab_client.has_changes(repo):
+        if not git.has_changes(repo):
             log("Agent made no changes — nothing to submit.")
             transcript.unlink(missing_ok=True)
             set_status("no_changes", cost_usd=round(cost, 6))
@@ -87,18 +91,30 @@ def run_fix_job(db: Database, job_id: str, project: dict, issue_id: str, instruc
         branch = branch_name(issue.id)
         message = f"Fix {issue.short_id or issue.id}: {issue.title}\n\nAuto-fixed from Sentry issue {issue.permalink}"
         log(f"Committing and pushing branch {branch} ...")
-        gitlab_client.commit_and_push(repo, branch, message)
+        git.commit_and_push(repo, branch, message)
 
-        log("Opening GitLab merge request ...")
-        description = f"Automated fix for Sentry issue [{issue.short_id or issue.id}]({issue.permalink}).\n\n{summary}"
-        mr_url = gitlab_client.open_merge_request(
-            project["gitlab_url"],
-            source_branch=branch,
-            target_branch=project["default_branch"],
-            title=f"Fix {issue.short_id or issue.id}: {issue.title}",
-            description=description,
-        )
-        log(f"Merge request opened: {mr_url}")
+        if use_github:
+            log("Opening GitHub pull request ...")
+            description = f"Automated fix for Sentry issue [{issue.short_id or issue.id}]({issue.permalink}).\n\n{summary}"
+            mr_url = github_client.open_pull_request(
+                repo_url,
+                source_branch=branch,
+                target_branch=project["default_branch"],
+                title=f"Fix {issue.short_id or issue.id}: {issue.title}",
+                description=description,
+            )
+            log(f"Pull request opened: {mr_url}")
+        else:
+            log("Opening GitLab merge request ...")
+            description = f"Automated fix for Sentry issue [{issue.short_id or issue.id}]({issue.permalink}).\n\n{summary}"
+            mr_url = gitlab_client.open_merge_request(
+                repo_url,
+                source_branch=branch,
+                target_branch=project["default_branch"],
+                title=f"Fix {issue.short_id or issue.id}: {issue.title}",
+                description=description,
+            )
+            log(f"Merge request opened: {mr_url}")
         transcript.unlink(missing_ok=True)  # completed cleanly — a future re-fix starts fresh
         set_status("success", mr_url=mr_url, cost_usd=round(cost, 6))
     except Exception as e:  # noqa: BLE001 - surface any failure to the dashboard

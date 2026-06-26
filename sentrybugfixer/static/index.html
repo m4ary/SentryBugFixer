@@ -10,7 +10,7 @@
 <body>
   <header>
     <h1><img src="/static/logo.svg" alt="" class="logo" /> SentryBugFixer</h1>
-    <p class="sub">Pull a Sentry issue → clone the repo → fix it with an agent → open a GitLab MR.</p>
+    <p class="sub">Pull a Sentry issue → clone the repo → fix it with an agent → open a GitLab MR or GitHub PR.</p>
   </header>
 
   <main>
@@ -47,7 +47,9 @@
       </div>
       <form class="modal-body" id="project-form">
         <input name="name" placeholder="Name (e.g. Backend API)" required />
-        <input name="gitlab_url" placeholder="GitLab repo URL (https://gitlab.com/group/project)" required />
+        <input name="gitlab_url" placeholder="GitLab repo URL (https://gitlab.com/group/project)" />
+        <input name="github_url" placeholder="GitHub repo URL (https://github.com/owner/repo)" />
+        <p class="field-hint">Provide a GitLab or GitHub URL (or both — the first non-empty one is used).</p>
         <input name="sentry_url" placeholder="Sentry project URL (https://org.sentry.io/projects/proj/)" required />
         <input name="default_branch" placeholder="default branch" value="main" />
         <div class="modal-actions">
@@ -94,7 +96,7 @@
         <h3 id="log-title">Fix log</h3>
         <span id="log-status" class="status"></span>
         <span class="spacer"></span>
-        <a id="log-mr" href="#" target="_blank" hidden>Merge request ↗</a>
+        <a id="log-mr" href="#" target="_blank" hidden>PR/MR ↗</a>
         <button class="ghost" id="log-close">✕</button>
       </div>
       <pre id="log-body"></pre>
